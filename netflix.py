@@ -5,6 +5,7 @@ Date: Jan 6, 2016
 
 Uses:
 - The Open Movie Database (OMDb) API for IMDb: http://www.omdbapi.com/
+- The Netflix Roulette API for Netflix for now.
 """
 
 import endpoints
@@ -42,7 +43,21 @@ class NetflixApi(remote.Service):
         name="movies.listmovies")
     def movies_list(self, request):
         #imdb id = tt1285016
-        response = urllib2.urlopen("http://www.omdbapi.com/?i=tt1285016")
+        movie = self.getMovieFromId("tt1285016")
+        return MovieCollection(movies_list=[movie])
+
+    @endpoints.method(message_types.VoidMessage, MovieCollection,
+        path="movies/lists/best_parodies", http_method="GET",
+        name="movies.listparodies")
+    def parodies_list(self, request):
+        movies = self.readList("lists/parodies_list.txt")
+        return MovieCollection(movies_list=movies)
+
+    """
+    Creates a Movie object using an IMDb id.
+    """
+    def getMovieFromId(self, imdbId):
+        response = urllib2.urlopen("http://www.omdbapi.com/?i="+imdbId)
         data = json.load(response)
         movie = Movie(name=data["Title"],
             media_type=data["Type"],
@@ -50,6 +65,38 @@ class NetflixApi(remote.Service):
             year=data["Year"],
             plot=data["Plot"],
             rating=data["imdbRating"])
-        return MovieCollection(movies_list=[movie, movie])
+        return movie
+
+    """
+    Gets the name of a movie from its IMDb id.
+    """
+    def getMovieNameFromId(self, imdbId):
+        response = urllib2.urlopen("http://www.omdbapi.com/?i="+imdbId)
+        data = json.load(response)
+        return data["Title"]
+
+    """
+    Creates a list of Movies from a file containing IMDb IDs. A movie is added
+    to the list if it also exists in the Netflix catalogue.
+    """
+    def readList(self, pathname):
+        f = open(pathname, "r")
+        movies = []
+        for line in f:
+            name = self.getMovieNameFromId(line)
+            if self.isOnNetflix(name):
+                movies.append(self.getMovieFromId(line))
+        return movies
+
+    """
+    Returns true, if the movie is on Netflix...
+    """
+    def isOnNetflix(self, name):
+        try:
+            response = urllib2.urlopen("http://netflixroulette.net/api/api.php?title="+name)
+            response.raise_for_status()
+        except Exception:
+            return False
+        return True
 
 APPLICATION = endpoints.api_server([NetflixApi])
