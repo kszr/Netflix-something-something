@@ -14,6 +14,7 @@ from protorpc import messages
 from protorpc import message_types
 from protorpc import remote
 import urllib2
+from google.appengine.api import urlfetch
 
 package = "Netflix"
 
@@ -46,6 +47,11 @@ class NetflixApi(remote.Service):
         movie = self.getMovieFromId("tt1285016")
         return MovieCollection(movies_list=[movie])
 
+    """
+    Lists best parodies. This reads from a static (and, it must be conceded, subjective)
+    list of the top 50 parodies on IMDb, and returns movies that are available to stream
+    on Netflix.
+    """
     @endpoints.method(message_types.VoidMessage, MovieCollection,
         path="movies/lists/best_parodies", http_method="GET",
         name="movies.listparodies")
@@ -93,10 +99,11 @@ class NetflixApi(remote.Service):
     """
     def isOnNetflix(self, name):
         try:
-            response = urllib2.urlopen("http://netflixroulette.net/api/api.php?title="+name)
-            response.raise_for_status()
-        except Exception:
+            print "http://netflixroulette.net/api/api.php?title="+name.encode("utf8").replace(" ", "%20")
+            response = urlfetch.fetch("http://netflixroulette.net/api/api.php?title="+name.replace(" ", "%20"))
+            print "Code: " + str(response.status_code)
+            return response.status_code == 200
+        except (urlfetch.InvalidURLError, urlfetch.DownloadError):
             return False
-        return True
 
 APPLICATION = endpoints.api_server([NetflixApi])
